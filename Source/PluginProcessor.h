@@ -65,6 +65,8 @@ private:
     int getNextNoteFromInterval(int currentNote, int interval);
     int getScaleIndex(int note);
     int getWeightedRandom(int random);
+    bool shouldTriggerNote();
+    int getPlacementInBar(double barPosition);
 
     float rate;
     int time;
@@ -75,4 +77,6 @@ private:
     int highestNote;
     enum {scaleLength = 5};
     int offsets[scaleLength];
+    double prevBarPosition;
+    int notesPerBar;
 };

@@ -24,7 +24,6 @@ RobScalePluginAudioProcessor::RobScalePluginAudioProcessor()
                        )
 #endif
 {
-  DBG("abc");
 }
 
 RobScalePluginAudioProcessor::~RobScalePluginAudioProcessor()
@@ -98,7 +97,6 @@ void RobScalePluginAudioProcessor::prepareToPlay (double sampleRate, int samples
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    DBG("prepare");
 
     rate = static_cast<float>(sampleRate);
     speed = 0.6f;
@@ -116,6 +114,7 @@ void RobScalePluginAudioProcessor::prepareToPlay (double sampleRate, int samples
     offsets[2] = 5;
     offsets[3] = 7;
     offsets[4] = 10;
+    notesPerBar = 16;
 }
 
 void RobScalePluginAudioProcessor::releaseResources()
@@ -164,12 +163,12 @@ int RobScalePluginAudioProcessor::getWeightedRandom(int random) {
 
 int RobScalePluginAudioProcessor::getNextInterval(int currentNote) {
   if (currentNote >= highestNote) {
-    std::cout << "too high\n";
+    /* std::cout << "too high\n"; */
     return getWeightedRandom(Random::getSystemRandom().nextInt(Range<int>(-15, 0)));
   }
 
   if (currentNote <= lowestNote) {
-    std::cout << "too low\n";
+    /* std::cout << "too low\n"; */
     return getWeightedRandom(Random::getSystemRandom().nextInt(Range<int>(0, 16)));
   }
 
@@ -188,7 +187,7 @@ int RobScalePluginAudioProcessor::getScaleIndex(int note) {
 
 int RobScalePluginAudioProcessor::getNextNoteFromInterval(int currentNote, int interval) {
   auto currentScaleIndex = getScaleIndex(currentNote);
-  std::cout << "currentScaleIndex " << currentScaleIndex << "\n";
+  /* std::cout << "currentScaleIndex " << currentScaleIndex << "\n"; */
 
   int octaves = 0;
 
@@ -198,16 +197,16 @@ int RobScalePluginAudioProcessor::getNextNoteFromInterval(int currentNote, int i
     octaves = 1;
   }
 
-  std::cout << "octaves " << octaves << "\n";
+  /* std::cout << "octaves " << octaves << "\n"; */
 
   auto scaleIndex = (currentScaleIndex + interval + scaleLength) % scaleLength;
 
-  std::cout << "scaleIndex " << scaleIndex << "\n";
-  std::cout << "currentNote " << currentNote << "\n";
-  std::cout << "scale diff " << offsets[currentScaleIndex] - offsets[scaleIndex] << "\n";
+  /* std::cout << "scaleIndex " << scaleIndex << "\n"; */
+  /* std::cout << "currentNote " << currentNote << "\n"; */
+  /* std::cout << "scale diff " << offsets[currentScaleIndex] - offsets[scaleIndex] << "\n"; */
 
   auto nextNote = currentNote + (offsets[scaleIndex] - offsets[currentScaleIndex]) + octaves * 12;
-  std::cout << "nextNote " << nextNote << "\n";
+  /* std::cout << "nextNote " << nextNote << "\n"; */
 
   return nextNote;
 }
@@ -218,7 +217,7 @@ int RobScalePluginAudioProcessor::getNextNote() {
   }
 
   lastInterval = getNextInterval(lastNote);
-  std::cout << "interval: " << lastInterval << "\n";
+  /* std::cout << "interval: " << lastInterval << "\n"; */
 
   return getNextNoteFromInterval(lastNote, lastInterval);
 }
@@ -257,7 +256,8 @@ void RobScalePluginAudioProcessor::processBlock (AudioBuffer<float>& buffer, Mid
 
     midiMessages.clear();
 
-    if ((time + numSamples) >= noteDuration) {
+    /* if ((time + numSamples) >= noteDuration) { */
+    if (shouldTriggerNote()) {
       auto offset = jmax(0, jmin((int) (noteDuration - time), numSamples - 1));
 
       if (lastNote > 0) {
@@ -269,6 +269,25 @@ void RobScalePluginAudioProcessor::processBlock (AudioBuffer<float>& buffer, Mid
     }
 
     time = (time + numSamples) % noteDuration;
+}
+
+int RobScalePluginAudioProcessor::getPlacementInBar(double currentPosition) {
+  auto beatsPerNote = 4.0f / (float) notesPerBar;
+  return std::floor(currentPosition / beatsPerNote);
+}
+
+bool RobScalePluginAudioProcessor::shouldTriggerNote() {
+  auto playHead = getPlayHead();
+  AudioPlayHead::CurrentPositionInfo currentPosition;
+  playHead->getCurrentPosition(currentPosition);
+  /* std::cout << "bpm " << currentPosition.bpm << "\n"; */
+  /* std::cout << "ppqPosition " << currentPosition.ppqPosition << "\n"; */
+  /* std::cout << "ppqPositionOfLastBarStart " << currentPosition.ppqPositionOfLastBarStart << "\n"; */
+  /* std::cout << "isPlaying " << currentPosition.isPlaying << "\n"; */
+  auto barPosition = currentPosition.ppqPosition;
+  auto shouldTrigger = (barPosition < prevBarPosition || getPlacementInBar(barPosition) > getPlacementInBar(prevBarPosition));
+  prevBarPosition = barPosition;
+  return shouldTrigger;
 }
 
 //==============================================================================
